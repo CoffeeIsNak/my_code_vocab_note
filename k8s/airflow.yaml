@@ -16,12 +16,11 @@ spec:
         defaultAirflowTag: "2.9.3"
 
         config:
-          logging_level: INFO
+          logging:
+            logging_level: INFO
 
         pgbouncer:
           enabled: true
-          persistence:
-            enabled: false  # PVC 필요 없게
 
         data:
           metadataConnection:
