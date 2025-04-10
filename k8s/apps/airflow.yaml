@@ -31,6 +31,11 @@ spec:
             username: postgres
             password: airflow
             database: airflow
+
+        migrations:
+          waitForMigrations:
+            enabled: true
+            timeout: 300  # 60초 → 300초로 증가
   destination:
     server: https://kubernetes.default.svc
     namespace: airflow
