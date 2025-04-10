@@ -13,10 +13,10 @@ spec:
       values: |
         webhook:
           enable: true
-        sparkJobNamespace: "spark-jobs"
+        sparkJobNamespace: "spark"
   destination:
     server: https://kubernetes.default.svc
-    namespace: spark-operator
+    namespace: spark
   syncPolicy:
     automated:
       prune: true
