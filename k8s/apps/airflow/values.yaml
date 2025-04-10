@@ -88,7 +88,7 @@ images:
   # all the 'run-airflow-migrations' and 'wait-for-airflow-migrations' containers/jobs
   # will use the images from 'defaultAirflowRepository:defaultAirflowTag' values
   # to run and wait for DB migrations .
-  useDefaultImageForMigration: false
+  useDefaultImageForMigration: true
   # timeout (in seconds) for airflow-migrations to complete
   migrationsWaitTimeout: 60
   pod_template:
@@ -1662,7 +1662,7 @@ triggerer:
     # This policy determines whether PVCs should be deleted when StatefulSet is scaled down or removed.
     persistentVolumeClaimRetentionPolicy: ~
     # Volume size for triggerer StatefulSet
-    size: 100Gi
+    size: 3Gi
     # If using a custom storageClass, pass name ref to all statefulSets here
     storageClassName:
     # Execute init container to chown log directory.
