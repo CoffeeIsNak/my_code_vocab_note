@@ -49,6 +49,15 @@ spec:
         persistence:
           enabled: false  # DAGs/logs PVC 없이 빈 디렉토리로 처리
 
+        dags:
+          gitSync:
+            enabled: true
+            repo: https://github.com/CoffeeIsNak/my_code_vocab_note.git
+            branch: main
+            subPath: dags
+            depth: 1
+            wait: 10
+
         flower:
           enabled: false
 
