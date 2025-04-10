@@ -337,7 +337,9 @@ executor: "KubernetesExecutor"
 allowPodLaunching: true
 
 # Environment variables for all airflow containers
-env: []
+env:
+  - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+    value: postgresql+psycopg2://airflow:airflow@airflow-pgbouncer:5432/airflow
 # - name: ""
 #   value: ""
 
