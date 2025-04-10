@@ -68,13 +68,13 @@ airflowHome: /opt/airflow
 defaultAirflowRepository: apache/airflow
 
 # Default airflow tag to deploy
-defaultAirflowTag: "2.10.5"
+defaultAirflowTag: "2.7.3"
 
 # Default airflow digest. If specified, it takes precedence over tag
 defaultAirflowDigest: ~
 
 # Airflow version (Used to make some decisions based on Airflow Version being deployed)
-airflowVersion: "2.10.5"
+airflowVersion: "2.7.3"
 
 # Images
 images:
@@ -700,7 +700,7 @@ workers:
     #   whenDeleted: Delete
     #   whenScaled: Delete
     # Volume size for worker StatefulSet
-    size: 100Gi
+    size: 1Gi
     # If using a custom storageClass, pass name ref to all statefulSets here
     storageClassName:
     # Execute init container to chown log directory.
