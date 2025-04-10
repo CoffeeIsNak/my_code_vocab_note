@@ -20,6 +20,8 @@ spec:
 
         pgbouncer:
           enabled: true
+          persistence:
+            enabled: false  # PVC 필요 없게
 
         data:
           metadataConnection:
@@ -47,10 +49,14 @@ spec:
             enabled: true
             timeout: 300
 
-        persistence:
-          enabled: false  # DAGs/logs PVC 없이 빈 디렉토리로 처리
+        logs:
+          persistence:
+            enabled: true
+            size: 5Gi
 
         dags:
+          persistence:
+            enabled: false
           gitSync:
             enabled: true
             repo: https://github.com/CoffeeIsNak/my_code_vocab_note.git
