@@ -1,90 +1,92 @@
-# root/main.tf
-provider "aws" {
-  region = "ap-northeast-2"
-}
-
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "5.1.2"
-
-  name = "eks-vpc"
-  cidr = "172.31.0.0/16"
-  azs  = ["ap-northeast-2a", "ap-northeast-2c"]
-
-  public_subnets = ["172.31.0.0/20", "172.31.16.0/20"]
-
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
-  tags = {
-    Name = "eks-vpc"
-  }
-}
-
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "20.8.4"
-
-  cluster_name    = "my-eks"
-  cluster_version = "1.30"
-  subnet_ids      = module.vpc.public_subnets
-  vpc_id          = module.vpc.vpc_id
-
-  eks_managed_node_group_defaults = {
-    instance_types = ["t3.medium"]
-    min_size       = 2
-    max_size       = 4
-    desired_size   = 2
-  }
-
-  eks_managed_node_groups = {
-    default = {
-      name = "my-node-group"
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "2.17.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.30.0"
     }
   }
+}
 
-  tags = {
-    Environment = "dev"
-    Project     = "code-parser"
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+# 현재 Google 클라이언트 설정 가져오기
+data "google_client_config" "current" {}
+
+resource "google_container_cluster" "primary" {
+  name     = var.cluster_name
+  location = var.region
+
+  remove_default_node_pool = true
+  initial_node_count       = 1
+
+  network    = "default"
+  subnetwork = "default"
+
+  ip_allocation_policy {}
+}
+
+resource "google_container_node_pool" "primary_nodes" {
+  name       = "node-pool"
+  location   = var.region
+  cluster    = google_container_cluster.primary.name
+  node_count = var.desired_size
+
+  node_config {
+    machine_type = var.machine_type
+    disk_size_gb = 30
+    oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  autoscaling {
+    min_node_count = var.min_size
+    max_node_count = var.max_size
   }
 }
 
-module "alb_irsa" {
-  source = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
-  version = "5.30.0"
+# Kubernetes Provider 설정 추가 (Terraform과 Kubernetes API 직접 연결)
+provider "kubernetes" {
+  host                   = "https://${google_container_cluster.primary.endpoint}"
+  token                  = data.google_client_config.current.access_token
+  cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth[0].cluster_ca_certificate)
+}
 
-  create_role                   = true
-  role_name                     = "eks-alb-controller"
-  provider_url                  = module.eks.oidc_provider
-  oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
-
-  tags = {
-    Name = "alb-irsa"
+# Helm Provider 설정 추가 (Helm 차트 배포용)
+provider "helm" {
+  kubernetes {
+    host                   = "https://${google_container_cluster.primary.endpoint}"
+    token                  = data.google_client_config.current.access_token
+    cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth[0].cluster_ca_certificate)
   }
 }
 
-resource "helm_release" "alb_controller" {
-  name       = "aws-load-balancer-controller"
-  namespace  = "kube-system"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
+# ArgoCD Helm 차트 배포
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  namespace        = "argocd"
+  create_namespace = true
 
-  set { name = "clusterName", value = module.eks.cluster_name }
-  set { name = "serviceAccount.create", value = "false" }
-  set { name = "serviceAccount.name", value = "aws-load-balancer-controller" }
-  set { name = "region", value = "ap-northeast-2" }
-  set { name = "vpcId", value = module.vpc.vpc_id }
-  set { name = "image.tag", value = "v2.6.1" }
-}
+  repository = "https://argoproj.github.io/argo-helm"
+  chart      = "argo-cd"
+  version    = "5.46.7"
 
-resource "kubernetes_service_account" "alb" {
-  metadata {
-    name      = "aws-load-balancer-controller"
-    namespace = "kube-system"
-    annotations = {
-      "eks.amazonaws.com/role-arn" = module.alb_irsa.iam_role_arn
-    }
+  set {
+    name  = "server.service.type"
+    value = "LoadBalancer"
   }
 
-  automount_service_account_token = true
+  set {
+    name  = "configs.params.server.insecure"
+    value = "true"
+  }
 }
