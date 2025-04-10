@@ -2652,6 +2652,7 @@ postgresql:
 # yamllint disable rule:line-length
 config:
   core:
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-pgbouncer:5432/airflow
     dags_folder: '{{ include "airflow_dags" . }}'
     # This is ignored when used with the official Docker image
     load_examples: 'False'
