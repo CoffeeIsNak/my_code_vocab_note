@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://airflow.apache.org
+    repoURL: https://airflow-helm.github.io/charts
     chart: airflow
     targetRevision: 1.13.1
     helm:
