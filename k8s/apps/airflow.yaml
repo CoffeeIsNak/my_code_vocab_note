@@ -13,7 +13,7 @@ spec:
       values: |
         executor: KubernetesExecutor
         defaultAirflowRepository: apache/airflow
-        defaultAirflowTag: "2.9.1"
+        defaultAirflowTag: "2.9.3"
 
         config:
           logging_level: INFO
