@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/gjstjd9509/your-repo.git
+    repoURL: https://github.com/CoffeeIsNak/my_code_vocab_note.git
     targetRevision: HEAD
     path: k8s/apps/airflow
     helm:
