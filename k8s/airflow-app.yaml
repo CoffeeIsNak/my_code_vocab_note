@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: airflow
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/gjstjd9509/your-repo.git
+    targetRevision: HEAD
+    path: k8s/apps/airflow
+    helm:
+      valueFiles:
+        - values.yaml  # 필요하면 여러 개도 가능
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: airflow
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
