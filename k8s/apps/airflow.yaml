@@ -42,6 +42,7 @@ spec:
             password: admin
 
         migrations:
+          runMigration: true
           waitForMigrations:
             enabled: true
             timeout: 300
