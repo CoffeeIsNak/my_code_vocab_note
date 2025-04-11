@@ -6,3 +6,6 @@ terraform.tfstate.*
 
 # json
 **/*.json
+
+# local
+**/local/
