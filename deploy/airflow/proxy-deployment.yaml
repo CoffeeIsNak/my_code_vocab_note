@@ -1,0 +1,46 @@
+# cloudsql-proxy Deployment + Service (GKE용, airflow namespace)
+# 이걸 먼저 배포한 뒤 Airflow values.yaml에는 127.0.0.1 대신 아래 Service 주소 사용
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudsql-proxy
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudsql-proxy
+  template:
+    metadata:
+      labels:
+        app: cloudsql-proxy
+    spec:
+      containers:
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+          command:
+            - "/cloud_sql_proxy"
+            - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:0.0.0.0:5432"
+            - "-credential_file=/secrets/cloudsql/key.json"
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudsql-proxy-svc
+  namespace: airflow
+spec:
+  selector:
+    app: cloudsql-proxy
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

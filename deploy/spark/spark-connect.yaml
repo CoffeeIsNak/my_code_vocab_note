@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-connect
+  namespace: spark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-connect
+  template:
+    metadata:
+      labels:
+        app: spark-connect
+    spec:
+      containers:
+        - name: spark-connect
+          image: apache/spark:3.5.1
+          command: ["/opt/spark/bin/spark-submit"]
+          args:
+            [
+              "--class", "org.apache.spark.sql.connect.service.SparkConnectService",
+              "--conf", "spark.plugins=org.apache.spark.sql.connect.SparkConnectPlugin",
+              "--packages", "org.apache.spark:spark-connect_2.12:3.4.1",
+              "local:///opt/spark/examples/jars/spark-examples_2.12-3.4.1.jar"
+            ]
+          ports:
+            - containerPort: 15002
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-connect
+  namespace: spark
+spec:
+  selector:
+    app: spark-connect
+  ports:
+    - protocol: TCP
+      port: 15002
+      targetPort: 15002

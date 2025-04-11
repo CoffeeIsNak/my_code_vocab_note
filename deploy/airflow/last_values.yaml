@@ -68,13 +68,13 @@ airflowHome: /opt/airflow
 defaultAirflowRepository: apache/airflow
 
 # Default airflow tag to deploy
-defaultAirflowTag: "2.7.3"
+defaultAirflowTag: "2.10.5"
 
 # Default airflow digest. If specified, it takes precedence over tag
 defaultAirflowDigest: ~
 
 # Airflow version (Used to make some decisions based on Airflow Version being deployed)
-airflowVersion: "2.7.3"
+airflowVersion: "2.10.5"
 
 # Images
 images:
@@ -88,7 +88,7 @@ images:
   # all the 'run-airflow-migrations' and 'wait-for-airflow-migrations' containers/jobs
   # will use the images from 'defaultAirflowRepository:defaultAirflowTag' values
   # to run and wait for DB migrations .
-  useDefaultImageForMigration: true
+  useDefaultImageForMigration: false
   # timeout (in seconds) for airflow-migrations to complete
   migrationsWaitTimeout: 60
   pod_template:
@@ -146,9 +146,6 @@ ingress:
     # Enable web ingress resource
     enabled: true
 
-    # service:
-    #   type: LoadBalancer
-    #   port: 8080
     # Annotations for the web Ingress
     annotations: {}
 
@@ -156,7 +153,7 @@ ingress:
     path: "/"
 
     # The pathType for the above path (used only with Kubernetes v1.19 and above)
-    pathType: "Prefix"
+    pathType: "ImplementationSpecific"
 
     # The hostname for the web Ingress (Deprecated - renamed to `ingress.web.hosts`)
     host: ""
@@ -228,7 +225,7 @@ ingress:
   # Configs for the Ingress of the statsd Service
   statsd:
     # Enable web ingress resource
-    enabled: false
+    enabled: true
 
     # Annotations for the statsd Ingress
     annotations: {}
@@ -337,9 +334,7 @@ executor: "KubernetesExecutor"
 allowPodLaunching: true
 
 # Environment variables for all airflow containers
-# env:
-#   - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-#     value: postgresql+psycopg2://airflow:airflow@airflow-pgbouncer:5432/airflow
+env: []
 # - name: ""
 #   value: ""
 
@@ -362,7 +357,7 @@ secret: []
 enableBuiltInSecretEnvVars:
   AIRFLOW__CORE__FERNET_KEY: true
   # For Airflow <2.3, backward compatibility; moved to [database] in 2.3
-  AIRFLOW__CORE__SQL_ALCHEMY_CONN: false
+  AIRFLOW__CORE__SQL_ALCHEMY_CONN: true
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: false
   AIRFLOW_CONN_AIRFLOW_DB: true
   AIRFLOW__WEBSERVER__SECRET_KEY: true
@@ -434,10 +429,11 @@ extraConfigMaps: {}
 # Extra env 'items' that will be added to the definition of airflow containers
 # a string is expected (templated).
 # TODO: difference from `env`? This is a templated string. Probably should template `env` and remove this.
-extraEnv:
+extraEnv: |
+  - name: AIRFLOW__CORE__LOAD_EXAMPLES
+    value: 'False'
   - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-    value: postgresql+psycopg2://airflow:airflow@airflow-postgresql:5432/airflow
-
+    value: 'postgresql+psycopg2://airflow:postgres@cloudsql-proxy-svc.airflow.svc.cluster.local:5432/airflowdb'
 # eg:
 # extraEnv: |
 #   - name: AIRFLOW__CORE__LOAD_EXAMPLES
@@ -445,7 +441,7 @@ extraEnv:
 
 # Extra envFrom 'items' that will be added to the definition of airflow containers
 # A string is expected (templated).
-extraEnvFrom: ~
+extraEnvFrom: null
 # eg:
 # extraEnvFrom: |
 #   - secretRef:
@@ -466,7 +462,7 @@ data:
   # data:
   #   connection: base64_encoded_connection_string
 
-  metadataSecretName: ~
+  metadataSecretName: null
   # When providing secret names and using the same database for metadata and
   # result backend, for Airflow < 2.4.0 it is necessary to create a separate
   # secret for result backend but with a db+ scheme prefix.
@@ -475,17 +471,22 @@ data:
   resultBackendSecretName: ~
   brokerUrlSecretName: ~
 
-  # Otherwise pass connection values in
   metadataConnection:
-    # name: airflow  # ⭐ 이게 있어야 PgBouncer의 [databases]에 airflow 키가 생김!
-    user: airflow
-    pass: airflow
-    protocol: postgresql
-    host: airflow-postgres
+    user: "airflow"
+    pass: "postgres"
+    protocol: "postgresql"
+    host: "cloudsql-proxy-svc.airflow.svc.cluster.local"
     port: 5432
-    db: airflow
-    sslmode: disable
-
+    db: "airflowdb"
+  # Otherwise pass connection values in
+  # metadataConnection:
+  #   user: airflow
+  #   pass: postgres
+  #   protocol: postgresql
+  #   host: ~
+  #   port: 5432
+  #   db: postgres
+  #   sslmode: disable
   # resultBackendConnection defaults to the same database as metadataConnection
   resultBackendConnection: ~
   # or, you can use a different database
@@ -568,6 +569,28 @@ kerberos:
 
 # Airflow Worker Config
 workers:
+  # extraContainers:
+  #   - name: cloudsql-proxy
+  #     image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+  #     command:
+  #       - "/cloud_sql_proxy"
+  #       - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+  #       - "-credential_file=/secrets/cloudsql/key.json"
+  #     volumeMounts:
+  #       - name: cloudsql-instance-credentials
+  #         mountPath: /secrets/cloudsql
+  #         readOnly: true
+
+  # extraVolumes:
+  #   - name: cloudsql-instance-credentials
+  #     secret:
+  #       secretName: cloudsql-instance-credentials
+
+  # extraVolumeMounts:
+  #   - name: cloudsql-instance-credentials
+  #     mountPath: /secrets/cloudsql
+  #     readOnly: true
+
   # Number of airflow celery workers in StatefulSet
   replicas: 1
   # Max number of old replicasets to retain
@@ -678,13 +701,13 @@ workers:
 
   # Allow HPA (KEDA must be disabled).
   hpa:
-    enabled: false
+    enabled: true
 
     # Minimum number of workers created by HPA
     minReplicaCount: 0
 
     # Maximum number of workers created by HPA
-    maxReplicaCount: 5
+    maxReplicaCount: 2
 
     # Specifications for which to use to calculate the desired replica count
     metrics:
@@ -700,14 +723,14 @@ workers:
 
   persistence:
     # Enable persistent volumes
-    enabled: true
+    enabled: false
     # This policy determines whether PVCs should be deleted when StatefulSet is scaled down or removed.
     persistentVolumeClaimRetentionPolicy: ~
     # persistentVolumeClaimRetentionPolicy:
     #   whenDeleted: Delete
     #   whenScaled: Delete
     # Volume size for worker StatefulSet
-    size: 1Gi
+    size: 10Gi
     # If using a custom storageClass, pass name ref to all statefulSets here
     storageClassName:
     # Execute init container to chown log directory.
@@ -885,6 +908,28 @@ workers:
 
 # Airflow scheduler settings
 scheduler:
+  # extraContainers:
+  #   - name: cloudsql-proxy
+  #     image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+  #     command:
+  #       - "/cloud_sql_proxy"
+  #       - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+  #       - "-credential_file=/secrets/cloudsql/key.json"
+  #     volumeMounts:
+  #       - name: cloudsql-instance-credentials
+  #         mountPath: /secrets/cloudsql
+  #         readOnly: true
+
+  # extraVolumes:
+  #   - name: cloudsql-instance-credentials
+  #     secret:
+  #       secretName: cloudsql-instance-credentials
+
+  # extraVolumeMounts:
+  #   - name: cloudsql-instance-credentials
+  #     mountPath: /secrets/cloudsql
+  #     readOnly: true
+
   enabled: true
   #  hostAliases for the scheduler pod
   hostAliases: []
@@ -986,9 +1031,9 @@ scheduler:
   safeToEvict: true
 
   # Launch additional containers into scheduler (templated).
-  extraContainers: []
-  # Add additional init containers into scheduler (templated).
-  extraInitContainers: []
+  # extraContainers: []
+  # # Add additional init containers into scheduler (templated).
+  # extraInitContainers: []
 
   # Mount additional volumes into scheduler. It can be templated like in the following example:
   #   extraVolumes:
@@ -1002,8 +1047,8 @@ scheduler:
   #     - name: my-templated-extra-volume
   #       mountPath: "{{ .Values.my_custom_path }}"
   #       readOnly: true
-  extraVolumes: []
-  extraVolumeMounts: []
+  # extraVolumes: []
+  # extraVolumeMounts: []
 
   # Select certain nodes for airflow scheduler pods.
   nodeSelector: {}
@@ -1067,31 +1112,44 @@ scheduler:
 
 # Airflow create user job settings
 createUserJob:
+  # extraContainers:
+  #   - name: cloudsql-proxy
+  #     image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+  #     command:
+  #       - "/cloud_sql_proxy"
+  #       - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+  #       - "-credential_file=/secrets/cloudsql/key.json"
+  #     volumeMounts:
+  #       - name: cloudsql-instance-credentials
+  #         mountPath: /secrets/cloudsql
+  #         readOnly: true
+
+  # extraVolumes:
+  #   - name: cloudsql-instance-credentials
+  #     secret:
+  #       secretName: cloudsql-instance-credentials
+
+  # extraVolumeMounts:
+  #   - name: cloudsql-instance-credentials
+  #     mountPath: /secrets/cloudsql
+  #     readOnly: true
+
   # Limit the lifetime of the job object after it finished execution.
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 120
   # Command to use when running the create user job (templated).
   command: ~
   # Args to use when running the create user job (templated).
   args:
-    - "bash"
-    - "-c"
-    # The format below is necessary to get `helm lint` happy
-    - |-
-      exec \
-      airflow {{ semverCompare ">=2.0.0" .Values.airflowVersion | ternary "users create" "create_user" }} "$@"
-    - --
-    - "-r"
-    - "{{ .Values.webserver.defaultUser.role }}"
-    - "-u"
-    - "{{ .Values.webserver.defaultUser.username }}"
-    - "-e"
-    - "{{ .Values.webserver.defaultUser.email }}"
-    - "-f"
-    - "{{ .Values.webserver.defaultUser.firstName }}"
-    - "-l"
-    - "{{ .Values.webserver.defaultUser.lastName }}"
-    - "-p"
-    - "{{ .Values.webserver.defaultUser.password }}"
+  - "bash"
+  - "-c"
+  - |
+    exec airflow {{ semverCompare ">=2.0.0" .Values.airflowVersion | ternary "users create" "create_user" }} \
+    -r {{ .Values.webserver.defaultUser.role }} \
+    -u {{ .Values.webserver.defaultUser.username }} \
+    -e {{ .Values.webserver.defaultUser.email }} \
+    -f {{ .Values.webserver.defaultUser.firstName }} \
+    -l {{ .Values.webserver.defaultUser.lastName }} \
+    -p {{ .Values.webserver.defaultUser.password }} && echo "✔ User created" && exit 0
 
   # Annotations on the create user job pod
   annotations: {}
@@ -1124,16 +1182,16 @@ createUserJob:
     create: true
     # The name of the ServiceAccount to use.
     # If not set and create is true, a name is generated using the release name
-    name: ~
+    name: airflow-worker
 
     # Annotations to add to create user kubernetes service account.
     annotations: {}
 
   # Launch additional containers into user creation job
-  extraContainers: []
+  # extraContainers: []
 
-  # Add additional init containers into user creation job (templated).
-  extraInitContainers: []
+  # # Add additional init containers into user creation job (templated).
+  # extraInitContainers: []
 
   # Mount additional volumes into user creation job. It can be templated like in the following example:
   #   extraVolumes:
@@ -1147,8 +1205,8 @@ createUserJob:
   #     - name: my-templated-extra-volume
   #       mountPath: "{{ .Values.my_custom_path }}"
   #       readOnly: true
-  extraVolumes: []
-  extraVolumeMounts: []
+  # extraVolumes: []
+  # extraVolumeMounts: []
 
   nodeSelector: {}
   affinity: {}
@@ -1172,21 +1230,39 @@ createUserJob:
 
 # Airflow database migration job settings
 migrateDatabaseJob:
+  # extraContainers:
+  #   - name: cloudsql-proxy
+  #     image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+  #     command:
+  #       - "/cloud_sql_proxy"
+  #       - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+  #       - "-credential_file=/secrets/cloudsql/key.json"
+  #     volumeMounts:
+  #       - name: cloudsql-instance-credentials
+  #         mountPath: /secrets/cloudsql
+  #         readOnly: true
+
+  # extraVolumes:
+  #   - name: cloudsql-instance-credentials
+  #     secret:
+  #       secretName: cloudsql-instance-credentials
+
+  # extraVolumeMounts:
+  #   - name: cloudsql-instance-credentials
+  #     mountPath: /secrets/cloudsql
+  #     readOnly: true
+
   enabled: true
   # Limit the lifetime of the job object after it finished execution.
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 120
   # Command to use when running the migrate database job (templated).
   command: ~
   # Args to use when running the migrate database job (templated).
   args:
     - "bash"
     - "-c"
-    - >-
-      exec \
-
-      airflow {{ semverCompare ">=2.7.0" .Values.airflowVersion
-      | ternary "db migrate" (semverCompare ">=2.0.0" .Values.airflowVersion
-      | ternary "db upgrade" "upgradedb") }}
+    - >
+      exec airflow {{ semverCompare ">=2.7.0" .Values.airflowVersion | ternary "db migrate" (semverCompare ">=2.0.0" .Values.airflowVersion | ternary "db upgrade" "upgradedb") }} && echo "✔ Done" && exit 0
 
   # Annotations on the database migration pod
   annotations: {}
@@ -1233,10 +1309,10 @@ migrateDatabaseJob:
   #   memory: 128Mi
 
   # Launch additional containers into database migration job
-  extraContainers: []
+  #   extraContainers: []
 
   # Add additional init containers into migrate database job (templated).
-  extraInitContainers: []
+  # extraInitContainers: []
 
   # Mount additional volumes into database migration job. It can be templated like in the following example:
   #   extraVolumes:
@@ -1250,8 +1326,8 @@ migrateDatabaseJob:
   #     - name: my-templated-extra-volume
   #       mountPath: "{{ .Values.my_custom_path }}"
   #       readOnly: true
-  extraVolumes: []
-  extraVolumeMounts: []
+  # extraVolumes: []
+  # extraVolumeMounts: []
 
   nodeSelector: {}
   affinity: {}
@@ -1366,8 +1442,6 @@ apiServer:
 # Airflow webserver settings
 webserver:
   enabled: true
-  service:
-    type: LoadBalancer
   # Add custom annotations to the webserver configmap
   configMapAnnotations: {}
   #  hostAliases for the webserver pod
@@ -1414,6 +1488,28 @@ webserver:
 
   # Grace period for webserver to finish after SIGTERM is sent from kubernetes
   terminationGracePeriodSeconds: 30
+
+  # extraContainers:
+  #   - name: cloudsql-proxy
+  #     image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+  #     command:
+  #       - "/cloud_sql_proxy"
+  #       - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+  #       - "-credential_file=/secrets/cloudsql/key.json"
+  #     volumeMounts:
+  #       - name: cloudsql-instance-credentials
+  #         mountPath: /secrets/cloudsql
+  #         readOnly: true
+
+  # extraVolumes:
+  #   - name: cloudsql-instance-credentials
+  #     secret:
+  #       secretName: cloudsql-instance-credentials
+
+  # extraVolumeMounts:
+  #   - name: cloudsql-instance-credentials
+  #     mountPath: /secrets/cloudsql
+  #     readOnly: true
 
   # Allow HPA
   hpa:
@@ -1509,9 +1605,9 @@ webserver:
     password: admin
 
   # Launch additional containers into webserver (templated).
-  extraContainers: []
+  # extraContainers: []
   # Add additional init containers into webserver (templated).
-  extraInitContainers: []
+  # extraInitContainers: []
 
   # Mount additional volumes into webserver. It can be templated like in the following example:
   #   extraVolumes:
@@ -1525,8 +1621,8 @@ webserver:
   #     - name: my-templated-extra-volume
   #       mountPath: "{{ .Values.my_custom_path }}"
   #       readOnly: true
-  extraVolumes: []
-  extraVolumeMounts: []
+  # extraVolumes: []
+  # extraVolumeMounts: []
 
   # This string (templated) will be mounted into the Airflow Webserver
   # as a custom webserver_config.py. You can bake a webserver_config.py in to
@@ -1544,7 +1640,7 @@ webserver:
   webserverConfigConfigMapName: ~
 
   service:
-    type: ClusterIP
+    type: LoadBalancer
     ## service annotations
     annotations: {}
     ports:
@@ -1610,6 +1706,28 @@ webserver:
 # Airflow Triggerer Config
 triggerer:
   enabled: true
+  # extraContainers:
+  #   - name: cloudsql-proxy
+  #     image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+  #     command:
+  #       - "/cloud_sql_proxy"
+  #       - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+  #       - "-credential_file=/secrets/cloudsql/key.json"
+  #     volumeMounts:
+  #       - name: cloudsql-instance-credentials
+  #         mountPath: /secrets/cloudsql
+  #         readOnly: true
+
+  # extraVolumes:
+  #   - name: cloudsql-instance-credentials
+  #     secret:
+  #       secretName: cloudsql-instance-credentials
+
+  # extraVolumeMounts:
+  #   - name: cloudsql-instance-credentials
+  #     mountPath: /secrets/cloudsql
+  #     readOnly: true
+
   # Number of airflow triggerers in the deployment
   replicas: 1
   # Max number of old replicasets to retain
@@ -1671,7 +1789,7 @@ triggerer:
     # This policy determines whether PVCs should be deleted when StatefulSet is scaled down or removed.
     persistentVolumeClaimRetentionPolicy: ~
     # Volume size for triggerer StatefulSet
-    size: 3Gi
+    size: 10Gi
     # If using a custom storageClass, pass name ref to all statefulSets here
     storageClassName:
     # Execute init container to chown log directory.
@@ -1697,9 +1815,9 @@ triggerer:
   safeToEvict: true
 
   # Launch additional containers into triggerer (templated).
-  extraContainers: []
-  # Add additional init containers into triggerers (templated).
-  extraInitContainers: []
+  # extraContainers: []
+  # # Add additional init containers into triggerers (templated).
+  # extraInitContainers: []
 
   # Mount additional volumes into triggerer. It can be templated like in the following example:
   #   extraVolumes:
@@ -1713,8 +1831,8 @@ triggerer:
   #     - name: my-templated-extra-volume
   #       mountPath: "{{ .Values.my_custom_path }}"
   #       readOnly: true
-  extraVolumes: []
-  extraVolumeMounts: []
+  # extraVolumes: []
+  # extraVolumeMounts: []
 
   # Select certain nodes for airflow triggerer pods.
   nodeSelector: {}
@@ -2201,10 +2319,8 @@ statsd:
 
 # PgBouncer settings
 pgbouncer:
-  # databases: 
-  #   airflow-metadata: host=airflow-postgresql dbname=airflow port=5432
   # Enable PgBouncer
-  enabled: true
+  enabled: false
   # Number of PgBouncer replicas to run in Deployment
   replicas: 1
   # Max number of old replicasets to retain
@@ -2641,13 +2757,12 @@ cleanup:
 # Configuration for postgresql subchart
 # Not recommended for production
 postgresql:
-  enabled: true
+  enabled: false
   auth:
-    enablePostgresUser: true
-    postgresPassword: airflow
-    username: airflow
-    password: airflow
-    database: airflow
+    enablePostgresUser: false
+    postgresPassword: postgres
+    username: ""
+    password: ""
 
 # Config settings to go into the mounted airflow.cfg
 #
@@ -2661,7 +2776,6 @@ postgresql:
 # yamllint disable rule:line-length
 config:
   core:
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
     dags_folder: '{{ include "airflow_dags" . }}'
     # This is ignored when used with the official Docker image
     load_examples: 'False'
@@ -2780,29 +2894,21 @@ dags:
     subPath: ~
   gitSync:
     enabled: true
-    repo: https://github.com/CoffeeIsNak/my_code_vocab_note.git
-    branch: main
-    subPath: dags
-    depth: 1
-    wait: 30
-    maxFailures: 5
-    # timeout: 120
-    # submodules: false
 
     # git repo clone url
     # ssh example: git@github.com:apache/airflow.git
     # https example: https://github.com/apache/airflow.git
-    # repo: https://github.com/apache/airflow.git
-    # branch: v2-2-stable
-    # rev: HEAD
+    repo: https://github.com/CoffeeIsNak/my_code_vocab_note.git
+    branch: main
+    rev: HEAD
     # The git revision (branch, tag, or hash) to check out, v4 only
     # ref: v2-2-stable
-    # depth: 1
-    # # the number of consecutive failures allowed before aborting
-    # maxFailures: 0
-    # # subpath within the repo where dags are located
-    # # should be "" if dags are at repo root
-    # subPath: "tests/dags"
+    depth: 1
+    # the number of consecutive failures allowed before aborting
+    maxFailures: 1
+    # subpath within the repo where dags are located
+    # should be "" if dags are at repo root
+    subPath: "dags"
     # if your repo needs a user name password
     # you can load them to a k8s secret like the one below
     #   ---
@@ -2853,10 +2959,10 @@ dags:
     # low values cause more traffic to the remote git repository
     # Go-style duration string (e.g. "100ms" or "0.1s" = 100ms).
     # For backwards compatibility, wait will be used if it is specified.
-    # period: 5s
-    # wait: ~
-    # # add variables from secret into gitSync containers, such proxy-config
-    # envFrom: ~
+    period: 5s
+    wait: ~
+    # add variables from secret into gitSync containers, such proxy-config
+    envFrom: ~
     # envFrom: |
     #   - secretRef:
     #       name: 'proxy-config'
@@ -2909,10 +3015,11 @@ logs:
     # Enable persistent volume for storing logs
     enabled: false
     # Volume size for logs
-    size: 100Gi
+    size: 2Gi
     # Annotations for the logs PVC
     annotations: {}
     # If using a custom storageClass, pass name here
     storageClassName:
     ## the name of an existing PVC to use
     existingClaim:
+

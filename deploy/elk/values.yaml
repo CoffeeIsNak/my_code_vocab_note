@@ -1,0 +1,26 @@
+# 기본 노드 수
+replicas: 1
+
+# Java Heap 설정
+esJavaOpts: "-Xmx2g -Xms2g"
+
+# Elasticsearch storage 설정
+volumeClaimTemplate:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+
+# CPU, 메모리 리소스
+resources:
+  requests:
+    cpu: "1"
+    memory: "4Gi"
+  limits:
+    cpu: "2"
+    memory: "4Gi"
+
+# 기타 설정 (옵션)
+nodeSelector: {}
+tolerations: []
+affinity: {}

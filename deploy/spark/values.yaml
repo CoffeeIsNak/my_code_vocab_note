@@ -1,0 +1,34 @@
+# Namespace 내 SparkApplication만 관리하도록 설정
+sparkJobNamespace: spark
+
+
+# Webhook (SparkApplication 검증용 Admission Controller)
+enableWebhook: true
+webhook:
+  enable: true
+  port: 443
+
+# ServiceAccount 생성 여부
+serviceAccounts:
+  spark:
+    create: true
+    name: spark
+
+# Operator에 필요한 RBAC 생성
+rbac:
+  create: true
+
+# Operator 컨테이너 리소스
+resources:
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+# Spark Operator 이미지 설정 (필요시 변경)
+image:
+  repository: gcr.io/spark-operator/spark-operator
+  tag: v1beta2-1.3.6-3.5.1
+  pullPolicy: IfNotPresent

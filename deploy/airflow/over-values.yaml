@@ -1,0 +1,135 @@
+---
+# airflow-values-override.yaml (Fixed for migrateDatabaseJob)
+
+executor: KubernetesExecutor
+
+airflow:
+  metadataSecretName: "override-dummy"
+  envFromSecret: null
+  config:
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:postgres@127.0.0.1:5432/airflowdb
+  extraPipPackages:
+    - pyspark==3.5.1
+  env:
+    - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+      value: postgresql+psycopg2://airflow:postgres@127.0.0.1:5432/airflowdb
+
+data:
+  metadataConnection:
+    user: "airflow"
+    pass: "postgres"
+    protocol: "postgresql"
+    host: "127.0.0.1"
+    port: 5432
+    db: "airflowdb"
+
+# DB 초기화 Job 명시적으로 활성화 및 CloudSQL Proxy sidecar 추가
+migrateDatabaseJob:
+  enabled: true
+  # podAnnotations: {}
+  # podLabels: {}
+  jobAnnotations: {}
+  # jobLabels: {}
+  securityContext: {}
+  # podSecurityContext: {}
+  extraContainers:
+    - name: cloudsql-proxy
+      image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+      command:
+        - "/cloud_sql_proxy"
+        - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+        - "-credential_file=/secrets/cloudsql/key.json"
+      volumeMounts:
+        - name: cloudsql-instance-credentials
+          mountPath: /secrets/cloudsql
+          readOnly: true
+  extraVolumeMounts: []
+  extraVolumes:
+    - name: cloudsql-instance-credentials
+      secret:
+        secretName: cloudsql-instance-credentials
+  env:
+    - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+      value: postgresql+psycopg2://airflow:postgres@127.0.0.1:5432/airflowdb
+
+# DAGs GitSync 설정
+dags:
+  gitSync:
+    enabled: true
+    repo: "https://github.com/CoffeeIsNak/my_code_vocab_note.git"
+    branch: "main"
+    subPath: "dags"
+
+webserver:
+  extraVolumes:
+    - name: cloudsql-instance-credentials
+      secret:
+        secretName: cloudsql-instance-credentials
+  extraContainers:
+    - name: cloudsql-proxy
+      image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+      command:
+        - "/cloud_sql_proxy"
+        - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+        - "-credential_file=/secrets/cloudsql/key.json"
+      volumeMounts:
+        - name: cloudsql-instance-credentials
+          mountPath: /secrets/cloudsql
+          readOnly: true
+
+scheduler:
+  extraVolumes:
+    - name: cloudsql-instance-credentials
+      secret:
+        secretName: cloudsql-instance-credentials
+  extraContainers:
+    - name: cloudsql-proxy
+      image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+      command:
+        - "/cloud_sql_proxy"
+        - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+        - "-credential_file=/secrets/cloudsql/key.json"
+      volumeMounts:
+        - name: cloudsql-instance-credentials
+          mountPath: /secrets/cloudsql
+          readOnly: true
+
+triggerer:
+  extraVolumes:
+    - name: cloudsql-instance-credentials
+      secret:
+        secretName: cloudsql-instance-credentials
+  extraContainers:
+    - name: cloudsql-proxy
+      image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+      command:
+        - "/cloud_sql_proxy"
+        - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+        - "-credential_file=/secrets/cloudsql/key.json"
+      volumeMounts:
+        - name: cloudsql-instance-credentials
+          mountPath: /secrets/cloudsql
+          readOnly: true
+
+workers:
+  extraVolumes:
+    - name: cloudsql-instance-credentials
+      secret:
+        secretName: cloudsql-instance-credentials
+  extraContainers:
+    - name: cloudsql-proxy
+      image: gcr.io/cloudsql-docker/gce-proxy:1.33.2
+      command:
+        - "/cloud_sql_proxy"
+        - "-instances=my-code-vocab:asia-northeast3:airflow-sql=tcp:5432"
+        - "-credential_file=/secrets/cloudsql/key.json"
+      volumeMounts:
+        - name: cloudsql-instance-credentials
+          mountPath: /secrets/cloudsql
+          readOnly: true
+  serviceAccount:
+    create: true
+    name: airflow-worker
+
+postgresql:
+  enabled: false
